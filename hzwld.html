@@ -2,30 +2,97 @@
 <html>
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>🗺️ 杭州湾新区小区分布</title>
   <script src="https://webapi.amap.com/maps?v=2.0&key=d51ba3aeb39576c52e16cc66e23b8df7"></script>
   <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { width:100vw; height:100vh; overflow:hidden; font-family:"Microsoft YaHei"; display:flex; }
-    #sidebar { width:320px; background:#fff; border-right:1px solid #ddd; display:flex; flex-direction:column; z-index:10; }
+    * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    body { width:100vw; height:100vh; overflow:hidden; font-family:"Microsoft YaHei", -apple-system, sans-serif; display:flex; }
+    
+    #sidebar { 
+      width:320px; background:#fff; border-right:1px solid #ddd; 
+      display:flex; flex-direction:column; z-index:10; 
+      transition: transform 0.3s ease; flex-shrink:0;
+    }
+    #sidebar.collapsed { transform: translateX(-100%); }
+    
     .search-box { padding:15px; border-bottom:1px solid #eee; background:#fafafa; }
     #search { width:100%; padding:10px; border:1px solid #ccc; border-radius:6px; font-size:14px; outline:none; }
     #search:focus { border-color:#40a9ff; box-shadow:0 0 5px rgba(64,169,255,0.3); }
-    #list-container { flex:1; overflow-y:auto; padding:10px 0; }
-    .list-item { padding:10px 15px; cursor:pointer; border-bottom:1px solid #f0f0f0; transition:background 0.2s; display:flex; justify-content:space-between; align-items:center; }
+    
+    #list-container { flex:1; overflow-y:auto; padding:10px 0; -webkit-overflow-scrolling:touch; }
+    .list-item { 
+      padding:10px 15px; cursor:pointer; border-bottom:1px solid #f0f0f0; 
+      transition:background 0.2s; display:flex; justify-content:space-between; align-items:center;
+      min-height:50px;
+    }
     .list-item:hover { background:#f0f7ff; }
     .list-item.active { background:#e6f7ff; border-left:3px solid #1890ff; }
     .item-name { font-size:14px; color:#333; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; width:70%; }
-    .item-value { font-size:12px; padding:2px 6px; border-radius:10px; color:white; background:#999; font-weight:bold; }
-    .color-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; }
+    .item-value { font-size:12px; padding:2px 8px; border-radius:10px; color:white; background:#999; font-weight:bold; min-width:36px; text-align:center; }
+    .color-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; flex-shrink:0; }
+    
     #container { flex:1; height:100%; position:relative; }
     .stats-bar { padding:10px; font-size:12px; color:#666; text-align:center; border-top:1px solid #eee; background:#fafafa; }
+    
+    #toggle-btn {
+      display:none; position:fixed; top:12px; left:12px; z-index:100;
+      width:40px; height:40px; border-radius:50%; background:#1890ff; color:white;
+      border:none; font-size:20px; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.2);
+      align-items:center; justify-content:center;
+    }
+    #toggle-btn:active { background:#096dd9; }
+    
+    #overlay {
+      display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+      background:rgba(0,0,0,0.4); z-index:9;
+    }
+    
+    /* 🔑 信息窗样式增强 */
+    .info-window { min-width:180px; max-width:260px; }
+    .info-window .label { color:#888; font-size:12px; margin-right:4px; }
+    .info-window .value { color:#333; font-weight:500; }
+    .info-window .dev { color:#1890ff; }
+    .info-window .prop { color:#52c41a; }
+    .info-window hr { border:0; border-top:1px dashed #e0e0e0; margin:6px 0; }
+    
+    /* 移动端适配 */
+    @media (max-width: 768px) {
+      body { flex-direction:column; }
+      #sidebar {
+        width:85%; max-width:320px; position:fixed; top:0; left:0; height:100%;
+        box-shadow:2px 0 10px rgba(0,0,0,0.1); transform:translateX(-100%);
+      }
+      #sidebar.open { transform:translateX(0); }
+      #toggle-btn { display:flex; }
+      #overlay.active { display:block; }
+      #container { width:100%; }
+      .list-item { padding:12px 15px; min-height:56px; }
+      .item-name { font-size:15px; }
+      .item-value { font-size:13px; padding:3px 10px; }
+      .search-box { padding:12px 15px; }
+      #search { font-size:16px; padding:12px; }
+      
+      /* 移动端信息窗优化 */
+      .info-window { min-width:160px; max-width:240px; }
+      .info-window b { font-size:14px; }
+      .info-window .value { font-size:13px; }
+    }
+    
+    @media (min-width: 769px) and (max-width: 1024px) {
+      #sidebar { width:280px; }
+      .list-item { padding:9px 12px; }
+    }
   </style>
 </head>
 <body>
+
+<button id="toggle-btn" onclick="toggleSidebar()">☰</button>
+<div id="overlay" onclick="toggleSidebar()"></div>
+
 <div id="sidebar">
   <div class="search-box">
-    <input type="text" id="search" placeholder="🔍 输入小区名搜索..." onkeyup="filterList()">
+    <input type="text" id="search" placeholder="🔍 输入小区名搜索..." onkeyup="filterList()" autocomplete="off">
   </div>
   <div id="list-container"></div>
   <div class="stats-bar">共 <b id="count-display">0</b> 个小区</div>
@@ -33,18 +100,81 @@
 <div id="container"></div>
 
 <script>
-  const DATA = [{"name": "杭州湾新区(世纪城御海苑)", "lng": 121.23058, "lat": 30.334479, "value": 76, "color": "#d73027"}, {"name": "杭州湾新区(天怡湾花苑)", "lng": 121.19936, "lat": 30.328525, "value": 60, "color": "#d73027"}, {"name": "杭州湾新区(吉瑞府)", "lng": 121.231488, "lat": 30.326597, "value": 51, "color": "#d73027"}, {"name": "杭州湾新区(世纪城观澜苑)", "lng": 121.234085, "lat": 30.331069, "value": 41, "color": "#fc8d59"}, {"name": "杭州湾新区(世纪城翠湖苑)", "lng": 121.224921, "lat": 30.333306, "value": 39, "color": "#fc8d59"}, {"name": "杭州湾新区(聚江苑)", "lng": 121.235944, "lat": 30.336226, "value": 39, "color": "#fc8d59"}, {"name": "杭州湾新区(吉璟府)", "lng": 121.235556, "lat": 30.314833, "value": 38, "color": "#fc8d59"}, {"name": "杭州湾新区(绿地海湾茹海苑)", "lng": 121.221782, "lat": 30.351263, "value": 35, "color": "#fc8d59"}, {"name": "杭州湾新区(世纪城博文苑)", "lng": 121.233237, "lat": 30.332485, "value": 34, "color": "#fc8d59"}, {"name": "杭州湾新区(世纪城汀兰苑)", "lng": 121.222426, "lat": 30.333401, "value": 32, "color": "#fc8d59"}, {"name": "杭州湾新区(和潮府)", "lng": 121.32017, "lat": 30.294903, "value": 32, "color": "#fc8d59"}, {"name": "杭州湾新区(天璞湾花苑)", "lng": 121.205385, "lat": 30.332153, "value": 32, "color": "#fc8d59"}, {"name": "杭州湾新区(世纪城汀香苑)", "lng": 121.222558, "lat": 30.330192, "value": 31, "color": "#fc8d59"}, {"name": "杭州湾新区(世纪城白鹭园)", "lng": 121.223302, "lat": 30.328299, "value": 30, "color": "#fc8d59"}, {"name": "杭州湾新区(金瑞豪庭)", "lng": 121.292191, "lat": 30.292666, "value": 30, "color": "#fc8d59"}, {"name": "杭州湾新区(颐蓝湾花苑)", "lng": 121.231488, "lat": 30.326597, "value": 30, "color": "#fc8d59"}, {"name": "杭州湾新区(南洋时光里)", "lng": 121.293188, "lat": 30.295013, "value": 29, "color": "#fee08b"}, {"name": "杭州湾新区(江岚苑)", "lng": 121.227278, "lat": 30.33667, "value": 29, "color": "#fee08b"}, {"name": "杭州湾新区(润海名庭)", "lng": 121.23267, "lat": 30.316518, "value": 29, "color": "#fee08b"}, {"name": "杭州湾新区(天珑湾花苑)", "lng": 121.209557, "lat": 30.332731, "value": 28, "color": "#fee08b"}, {"name": "杭州湾新区(绿地海湾听海苑)", "lng": 121.235041, "lat": 30.343706, "value": 28, "color": "#fee08b"}, {"name": "杭州湾新区(丽林苑)", "lng": 121.231488, "lat": 30.326597, "value": 27, "color": "#fee08b"}, {"name": "杭州湾新区(听海苑)", "lng": 121.234981, "lat": 30.345152, "value": 27, "color": "#fee08b"}, {"name": "杭州湾新区(天澜湾花苑)", "lng": 121.231488, "lat": 30.326597, "value": 27, "color": "#fee08b"}, {"name": "杭州湾新区(绿地海湾耀海苑)", "lng": 121.226263, "lat": 30.351718, "value": 27, "color": "#fee08b"}, {"name": "杭州湾新区(世纪城清芷园)", "lng": 121.22623, "lat": 30.328692, "value": 26, "color": "#fee08b"}, {"name": "杭州湾新区(碧桂园湾上前璟)", "lng": 121.313189, "lat": 30.280614, "value": 26, "color": "#fee08b"}, {"name": "杭州湾新区(中兴一路1377弄)", "lng": 121.208586, "lat": 30.32204, "value": 25, "color": "#fee08b"}, {"name": "杭州湾新区(春来云潮府)", "lng": 121.313189, "lat": 30.280614, "value": 24, "color": "#fee08b"}, {"name": "杭州湾新区(尊海苑)", "lng": 121.21731, "lat": 30.3483, "value": 21, "color": "#fee08b"}, {"name": "杭州湾新区(绿地海湾思海苑)", "lng": 121.216788, "lat": 30.339675, "value": 20, "color": "#fee08b"}, {"name": "杭州湾新区(世纪城竹溪园)", "lng": 121.225395, "lat": 30.323833, "value": 19, "color": "#fee08b"}, {"name": "杭州湾新区(世纪城赏江苑)", "lng": 121.235042, "lat": 30.334587, "value": 19, "color": "#fee08b"}, {"name": "杭州湾新区(绿地海湾旭海苑)", "lng": 121.221851, "lat": 30.354492, "value": 19, "color": "#fee08b"}, {"name": "杭州湾新区(汀香苑)", "lng": 121.222558, "lat": 30.330192, "value": 18, "color": "#fee08b"}, {"name": "杭州湾新区(世纪城香颂园)", "lng": 121.226685, "lat": 30.325687, "value": 17, "color": "#fee08b"}, {"name": "杭州湾新区(海和苑)", "lng": 121.202065, "lat": 30.311525, "value": 17, "color": "#fee08b"}, {"name": "杭州湾新区(天映湾花苑)", "lng": 121.231488, "lat": 30.326597, "value": 15, "color": "#fee08b"}, {"name": "杭州湾新区(学知苑)", "lng": 121.219359, "lat": 30.321478, "value": 15, "color": "#fee08b"}, {"name": "杭州湾新区(海纳路375弄)", "lng": 121.204895, "lat": 30.320934, "value": 14, "color": "#91cf60"}, {"name": "杭州湾新区(风鹭湾花苑)", "lng": 121.188377, "lat": 30.344984, "value": 14, "color": "#91cf60"}, {"name": "杭州湾新区(德海苑)", "lng": 121.216812, "lat": 30.342566, "value": 13, "color": "#91cf60"}, {"name": "杭州湾新区(世外城)", "lng": 121.234466, "lat": 30.351273, "value": 12, "color": "#91cf60"}, {"name": "杭州湾新区(世纪城揽月苑)", "lng": 121.231591, "lat": 30.325946, "value": 12, "color": "#91cf60"}, {"name": "杭州湾新区(星烁苑)", "lng": 121.211564, "lat": 30.31698, "value": 12, "color": "#91cf60"}, {"name": "杭州湾新区(繁海苑)", "lng": 121.21615, "lat": 30.345416, "value": 12, "color": "#91cf60"}, {"name": "杭州湾新区(绿地海湾雅海苑)", "lng": 121.232933, "lat": 30.35604, "value": 12, "color": "#91cf60"}, {"name": "杭州湾新区(和暄苑)", "lng": 121.231639, "lat": 30.353645, "value": 11, "color": "#91cf60"}, {"name": "杭州湾新区(和熙湾花苑)", "lng": 121.231488, "lat": 30.326597, "value": 11, "color": "#91cf60"}, {"name": "杭州湾新区(赏江苑)", "lng": 121.235042, "lat": 30.334587, "value": 11, "color": "#91cf60"}, {"name": "杭州湾新区(锦云湾花苑)", "lng": 121.203877, "lat": 30.352904, "value": 11, "color": "#91cf60"}, {"name": "杭州湾新区(望澜园)", "lng": 121.203234, "lat": 30.34079, "value": 10, "color": "#91cf60"}, {"name": "杭州湾新区(碧桂园海上传奇听涛苑)", "lng": 121.197653, "lat": 30.33917, "value": 10, "color": "#91cf60"}, {"name": "杭州湾新区(绿地海湾丽海苑)", "lng": 121.224699, "lat": 30.344991, "value": 10, "color": "#91cf60"}, {"name": "杭州湾新区(绿地海湾栀海苑)", "lng": 121.207209, "lat": 30.348164, "value": 10, "color": "#91cf60"}, {"name": "杭州湾新区(绿地海湾泰海苑)", "lng": 121.220015, "lat": 30.348086, "value": 10, "color": "#91cf60"}, {"name": "杭州湾新区(世纪城梦想公寓)", "lng": 121.313189, "lat": 30.280614, "value": 9, "color": "#91cf60"}, {"name": "杭州湾新区(云泊苑)", "lng": 121.205154, "lat": 30.311778, "value": 9, "color": "#91cf60"}, {"name": "杭州湾新区(天瑞湾)", "lng": 121.231488, "lat": 30.326597, "value": 9, "color": "#91cf60"}, {"name": "杭州湾新区(悦畔湾花苑)", "lng": 121.188347, "lat": 30.336688, "value": 9, "color": "#91cf60"}, {"name": "杭州湾新区(晨曦湾花苑)", "lng": 121.187248, "lat": 30.338599, "value": 9, "color": "#91cf60"}, {"name": "杭州湾新区(澜璟园)", "lng": 121.198389, "lat": 30.343377, "value": 9, "color": "#91cf60"}, {"name": "杭州湾新区(珑澜苑)", "lng": 121.206072, "lat": 30.340257, "value": 9, "color": "#91cf60"}, {"name": "杭州湾新区(皓月苑)", "lng": 121.21338, "lat": 30.317178, "value": 9, "color": "#91cf60"}, {"name": "杭州湾新区(逸海苑)", "lng": 121.235287, "lat": 30.347988, "value": 9, "color": "#91cf60"}, {"name": "杭州湾新区(雍荣园)", "lng": 121.200974, "lat": 30.344137, "value": 9, "color": "#91cf60"}, {"name": "杭州湾新区(杰海苑)", "lng": 121.219364, "lat": 30.355251, "value": 8, "color": "#91cf60"}, {"name": "杭州湾新区(海悦湾花苑)", "lng": 121.340464, "lat": 30.294497, "value": 8, "color": "#91cf60"}, {"name": "杭州湾新区(海汀湾花苑)", "lng": 121.202416, "lat": 30.324172, "value": 8, "color": "#91cf60"}, {"name": "杭州湾新区(海雅苑)", "lng": 121.197809, "lat": 30.308783, "value": 8, "color": "#91cf60"}, {"name": "杭州湾新区(滨海四路1255弄)", "lng": 121.205675, "lat": 30.330479, "value": 8, "color": "#91cf60"}, {"name": "杭州湾新区(碧桂园海上传奇天荟苑)", "lng": 121.313189, "lat": 30.280614, "value": 8, "color": "#91cf60"}, {"name": "杭州湾新区(翠湖苑)", "lng": 121.224921, "lat": 30.333306, "value": 8, "color": "#91cf60"}, {"name": "杭州湾新区(观澜苑)", "lng": 121.234085, "lat": 30.331069, "value": 8, "color": "#91cf60"}, {"name": "杭州湾新区(越溪湖畔)", "lng": 121.286576, "lat": 30.313593, "value": 8, "color": "#91cf60"}, {"name": "杭州湾新区(中南菩悦海悦湾花苑)", "lng": 121.340464, "lat": 30.294497, "value": 7, "color": "#91cf60"}, {"name": "杭州湾新区(望臻园)", "lng": 121.203224, "lat": 30.344484, "value": 7, "color": "#91cf60"}, {"name": "杭州湾新区(杭州湾壹号睿博园)", "lng": 121.206951, "lat": 30.34416, "value": 7, "color": "#91cf60"}, {"name": "杭州湾新区(杭州湾壹号雍荣园)", "lng": 121.200974, "lat": 30.344137, "value": 7, "color": "#91cf60"}, {"name": "杭州湾新区(汀兰苑)", "lng": 121.222426, "lat": 30.333401, "value": 7, "color": "#91cf60"}, {"name": "杭州湾新区(碧桂园海上传奇逸涛苑)", "lng": 121.313189, "lat": 30.280614, "value": 7, "color": "#91cf60"}, {"name": "杭州湾新区(逸涛苑)", "lng": 121.231488, "lat": 30.326597, "value": 7, "color": "#91cf60"}, {"name": "杭州湾新区(锦霞湾花苑)", "lng": 121.203879, "lat": 30.351047, "value": 7, "color": "#91cf60"}, {"name": "杭州湾新区(雍贤园)", "lng": 121.231488, "lat": 30.326597, "value": 7, "color": "#91cf60"}, {"name": "杭州湾新区(云晴苑)", "lng": 121.206668, "lat": 30.310308, "value": 6, "color": "#91cf60"}, {"name": "杭州湾新区(俊海苑)", "lng": 121.217523, "lat": 30.354344, "value": 6, "color": "#91cf60"}, {"name": "杭州湾新区(初晴苑)", "lng": 121.20932, "lat": 30.316681, "value": 6, "color": "#91cf60"}, {"name": "杭州湾新区(天嘉湾花苑)", "lng": 121.201545, "lat": 30.329293, "value": 6, "color": "#91cf60"}, {"name": "杭州湾新区(御海苑)", "lng": 121.23058, "lat": 30.334479, "value": 6, "color": "#91cf60"}, {"name": "杭州湾新区(望云苑)", "lng": 121.229671, "lat": 30.355876, "value": 6, "color": "#91cf60"}, {"name": "杭州湾新区(杭州湾壹号澜璟园)", "lng": 121.198389, "lat": 30.343377, "value": 6, "color": "#91cf60"}, {"name": "杭州湾新区(海涵苑)", "lng": 121.202093, "lat": 30.309496, "value": 6, "color": "#91cf60"}, {"name": "杭州湾新区(海纳路376弄)", "lng": 121.205282, "lat": 30.321964, "value": 6, "color": "#91cf60"}, {"name": "杭州湾新区(碧桂园海上传奇皓海苑)", "lng": 121.194319, "lat": 30.343416, "value": 6, "color": "#91cf60"}, {"name": "杭州湾新区(绿地海湾茗海苑)", "lng": 121.222088, "lat": 30.348164, "value": 6, "color": "#91cf60"}, {"name": "杭州湾新区(花间苑)", "lng": 121.212839, "lat": 30.320266, "value": 6, "color": "#91cf60"}, {"name": "杭州湾新区(世外旭辉城)", "lng": 121.234466, "lat": 30.351273, "value": 5, "color": "#91cf60"}, {"name": "杭州湾新区(云涛路)", "lng": 121.210594, "lat": 30.343394, "value": 5, "color": "#91cf60"}, {"name": "杭州湾新区(仙踪苑)", "lng": 121.20731, "lat": 30.316351, "value": 5, "color": "#91cf60"}, {"name": "杭州湾新区(天乾湾花苑)", "lng": 121.20529, "lat": 30.326815, "value": 5, "color": "#91cf60"}, {"name": "杭州湾新区(悦铂商务中心)", "lng": 121.208341, "lat": 30.341167, "value": 5, "color": "#91cf60"}, {"name": "杭州湾新区(揽月苑)", "lng": 121.231591, "lat": 30.325946, "value": 5, "color": "#91cf60"}, {"name": "杭州湾新区(星澈苑)", "lng": 121.210965, "lat": 30.31998, "value": 5, "color": "#91cf60"}, {"name": "杭州湾新区(梦想公寓)", "lng": 121.313189, "lat": 30.280614, "value": 5, "color": "#91cf60"}, {"name": "杭州湾新区(白鹭园)", "lng": 121.223302, "lat": 30.328299, "value": 5, "color": "#91cf60"}, {"name": "杭州湾新区(碧桂园海上传奇澄碧苑)", "lng": 121.313189, "lat": 30.280614, "value": 5, "color": "#91cf60"}, {"name": "杭州湾新区(碧桂园海上传奇钓云苑)", "lng": 121.313189, "lat": 30.280614, "value": 5, "color": "#91cf60"}, {"name": "杭州湾新区(绿地海湾丽海苑别墅)", "lng": 121.224699, "lat": 30.344991, "value": 5, "color": "#91cf60"}, {"name": "杭州湾新区(绿地海湾逸海苑)", "lng": 121.235287, "lat": 30.347988, "value": 5, "color": "#91cf60"}, {"name": "杭州湾新区(锦潮湾花苑)", "lng": 121.195986, "lat": 30.347501, "value": 5, "color": "#91cf60"}, {"name": "杭州湾新区(天泽湾花苑)", "lng": 121.217202, "lat": 30.333736, "value": 4, "color": "#91cf60"}, {"name": "杭州湾新区(杭州湾壹号望澜园)", "lng": 121.203234, "lat": 30.34079, "value": 4, "color": "#91cf60"}, {"name": "杭州湾新区(杭州湾壹号雍贤园)", "lng": 121.293276, "lat": 30.289, "value": 4, "color": "#91cf60"}, {"name": "杭州湾新区(海乐苑)", "lng": 121.198721, "lat": 30.314414, "value": 4, "color": "#91cf60"}, {"name": "杭州湾新区(碧桂园海上传奇海汐苑)", "lng": 121.313189, "lat": 30.280614, "value": 4, "color": "#91cf60"}, {"name": "杭州湾新区(祥庆尙府)", "lng": 121.231488, "lat": 30.326597, "value": 4, "color": "#91cf60"}, {"name": "杭州湾新区(绿地海湾德海苑)", "lng": 121.216812, "lat": 30.342566, "value": 4, "color": "#91cf60"}, {"name": "杭州湾新区(达智路81号)", "lng": 121.231488, "lat": 30.326597, "value": 4, "color": "#91cf60"}, {"name": "杭州湾新区(锦涵湾花苑)", "lng": 121.199535, "lat": 30.34819, "value": 4, "color": "#91cf60"}, {"name": "杭州湾新区(伊水湾花苑)", "lng": 121.185721, "lat": 30.346227, "value": 3, "color": "#91cf60"}, {"name": "杭州湾新区(天荟苑)", "lng": 121.231488, "lat": 30.326597, "value": 3, "color": "#91cf60"}, {"name": "杭州湾新区(晴空苑)", "lng": 121.207664, "lat": 30.314379, "value": 3, "color": "#91cf60"}, {"name": "杭州湾新区(望湾府)", "lng": 121.244085, "lat": 30.295861, "value": 3, "color": "#91cf60"}, {"name": "杭州湾新区(杭州湾壹号澜臻园)", "lng": 121.197999, "lat": 30.341316, "value": 3, "color": "#91cf60"}, {"name": "杭州湾新区(海纳路408弄)", "lng": 121.205397, "lat": 30.324199, "value": 3, "color": "#91cf60"}, {"name": "杭州湾新区(海裕湾)", "lng": 121.294433, "lat": 30.292679, "value": 3, "color": "#91cf60"}, {"name": "杭州湾新区(澜臻园)", "lng": 121.197999, "lat": 30.341316, "value": 3, "color": "#91cf60"}, {"name": "杭州湾新区(睿博园)", "lng": 121.206951, "lat": 30.34416, "value": 3, "color": "#91cf60"}, {"name": "杭州湾新区(碧桂园海上传奇名轩苑)", "lng": 121.313189, "lat": 30.280614, "value": 3, "color": "#91cf60"}, {"name": "杭州湾新区(碧桂园海上传奇闻荷苑)", "lng": 121.313189, "lat": 30.280614, "value": 3, "color": "#91cf60"}, {"name": "杭州湾新区(逸湾小筑)", "lng": 121.264734, "lat": 30.278803, "value": 3, "color": "#91cf60"}, {"name": "杭州湾新区(锦珀湾花苑)", "lng": 121.196439, "lat": 30.356833, "value": 3, "color": "#91cf60"}, {"name": "杭州湾新区(锦虹湾花苑)", "lng": 121.201531, "lat": 30.350166, "value": 3, "color": "#91cf60"}, {"name": "杭州湾新区(中南滨海壹号)", "lng": 121.23267, "lat": 30.316518, "value": 2, "color": "#91cf60"}, {"name": "杭州湾新区(云漫里)", "lng": 121.231488, "lat": 30.326597, "value": 2, "color": "#91cf60"}, {"name": "杭州湾新区(博文苑)", "lng": 121.233237, "lat": 30.332485, "value": 2, "color": "#91cf60"}, {"name": "杭州湾新区(合生杭州湾国际新城三期)", "lng": 121.208819, "lat": 30.327637, "value": 2, "color": "#91cf60"}, {"name": "杭州湾新区(塘风路)", "lng": 121.194981, "lat": 30.337796, "value": 2, "color": "#91cf60"}, {"name": "杭州湾新区(抚风苑)", "lng": 121.231488, "lat": 30.326597, "value": 2, "color": "#91cf60"}, {"name": "杭州湾新区(海上风华园)", "lng": 121.231488, "lat": 30.326597, "value": 2, "color": "#91cf60"}, {"name": "杭州湾新区(潇雅苑)", "lng": 121.209564, "lat": 30.34588, "value": 2, "color": "#91cf60"}, {"name": "杭州湾新区(碧桂园海上传奇掬月苑)", "lng": 121.313189, "lat": 30.280614, "value": 2, "color": "#91cf60"}, {"name": "杭州湾新区(融望园)", "lng": 121.199801, "lat": 30.339871, "value": 2, "color": "#91cf60"}, {"name": "杭州湾新区(香湾苑)", "lng": 121.231488, "lat": 30.326597, "value": 2, "color": "#91cf60"}, {"name": "杭州湾新区(上湾小区)", "lng": 121.323167, "lat": 30.300865, "value": 1, "color": "#91cf60"}, {"name": "杭州湾新区(世纪城香颂苑)", "lng": 121.231488, "lat": 30.326597, "value": 1, "color": "#91cf60"}, {"name": "杭州湾新区(中兴一路1439弄)", "lng": 121.290476, "lat": 30.290646, "value": 1, "color": "#91cf60"}, {"name": "杭州湾新区(合生杭州湾国际新城一期)", "lng": 121.208819, "lat": 30.327637, "value": 1, "color": "#91cf60"}, {"name": "杭州湾新区(合生杭州湾国际新城二期)", "lng": 121.208819, "lat": 30.327637, "value": 1, "color": "#91cf60"}, {"name": "杭州湾新区(合生杭州湾国际新城别墅)", "lng": 121.208819, "lat": 30.327637, "value": 1, "color": "#91cf60"}, {"name": "杭州湾新区(欣君府)", "lng": 121.22526, "lat": 30.270665, "value": 1, "color": "#91cf60"}, {"name": "杭州湾新区(滨海四路)", "lng": 121.330843, "lat": 30.320963, "value": 1, "color": "#91cf60"}, {"name": "杭州湾新区(申海街15弄)", "lng": 121.234749, "lat": 30.345632, "value": 1, "color": "#91cf60"}, {"name": "杭州湾新区(碧桂园海上传奇抚风苑)", "lng": 121.313189, "lat": 30.280614, "value": 1, "color": "#91cf60"}, {"name": "杭州湾新区(碧桂园海上传奇流云苑)", "lng": 121.313189, "lat": 30.280614, "value": 1, "color": "#91cf60"}, {"name": "杭州湾新区(若瑜路87弄)", "lng": 121.200502, "lat": 30.312294, "value": 1, "color": "#91cf60"}, {"name": "杭州湾新区(茗海苑)", "lng": 121.222088, "lat": 30.348164, "value": 1, "color": "#91cf60"}, {"name": "杭州湾新区(金合路)", "lng": 121.227059, "lat": 30.325894, "value": 1, "color": "#91cf60"}, {"name": "杭州湾新区(金瑞街)", "lng": 121.232599, "lat": 30.331986, "value": 1, "color": "#91cf60"}, {"name": "杭州湾新区(集士路)", "lng": 121.231488, "lat": 30.326597, "value": 1, "color": "#91cf60"}, {"name": "杭州湾新区(颐蓝湾)", "lng": 121.231488, "lat": 30.326597, "value": 1, "color": "#91cf60"}];
+  const DATA = [{"name": "杭州湾新区(世纪城御海苑)", "lng": 121.23058, "lat": 30.334479, "value": 76, "color": "#d73027", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(天怡湾花苑)", "lng": 121.19936, "lat": 30.328525, "value": 60, "color": "#d73027", "developer": "合生创展集团有限公司", "property": "广东康景物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(吉瑞府)", "lng": 121.231488, "lat": 30.326597, "value": 51, "color": "#d73027", "developer": "宁波丽景置业有限公司", "property": "绿城物业服务集团有限公司"}, {"name": "杭州湾新区(世纪城观澜苑)", "lng": 121.234085, "lat": 30.331069, "value": 41, "color": "#fc8d59", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(世纪城翠湖苑)", "lng": 121.224921, "lat": 30.333306, "value": 39, "color": "#fc8d59", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(聚江苑)", "lng": 121.235944, "lat": 30.336226, "value": 39, "color": "#fc8d59", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(吉璟府)", "lng": 121.235556, "lat": 30.314833, "value": 38, "color": "#fc8d59", "developer": "宁波丽景置业有限公司", "property": "绿城物业服务集团有限公司"}, {"name": "杭州湾新区(绿地海湾茹海苑)", "lng": 121.221782, "lat": 30.351263, "value": 35, "color": "#fc8d59", "developer": "绿地集团宁波杭州湾置业有限公司", "property": "嘉成物业/南都物业服务集团"}, {"name": "杭州湾新区(世纪城博文苑)", "lng": 121.233237, "lat": 30.332485, "value": 34, "color": "#fc8d59", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(世纪城汀兰苑)", "lng": 121.222426, "lat": 30.333401, "value": 32, "color": "#fc8d59", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(和潮府)", "lng": 121.32017, "lat": 30.294903, "value": 32, "color": "#fc8d59", "developer": "合生创展集团有限公司", "property": "广东康景物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(天璞湾花苑)", "lng": 121.205385, "lat": 30.332153, "value": 32, "color": "#fc8d59", "developer": "合生创展集团有限公司", "property": "广东康景物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(世纪城汀香苑)", "lng": 121.222558, "lat": 30.330192, "value": 31, "color": "#fc8d59", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(世纪城白鹭园)", "lng": 121.223302, "lat": 30.328299, "value": 30, "color": "#fc8d59", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(金瑞豪庭)", "lng": 121.292191, "lat": 30.292666, "value": 30, "color": "#fc8d59", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(颐蓝湾花苑)", "lng": 121.231488, "lat": 30.326597, "value": 30, "color": "#fc8d59", "developer": "合生创展集团有限公司", "property": "广东康景物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(南洋时光里)", "lng": 121.293188, "lat": 30.295013, "value": 29, "color": "#fee08b", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(江岚苑)", "lng": 121.227278, "lat": 30.33667, "value": 29, "color": "#fee08b", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(润海名庭)", "lng": 121.23267, "lat": 30.316518, "value": 29, "color": "#fee08b", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(天珑湾花苑)", "lng": 121.209557, "lat": 30.332731, "value": 28, "color": "#fee08b", "developer": "合生创展集团有限公司", "property": "广东康景物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(绿地海湾听海苑)", "lng": 121.235041, "lat": 30.343706, "value": 28, "color": "#fee08b", "developer": "绿地集团宁波杭州湾置业有限公司", "property": "嘉成物业/南都物业服务集团"}, {"name": "杭州湾新区(丽林苑)", "lng": 121.231488, "lat": 30.326597, "value": 27, "color": "#fee08b", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(听海苑)", "lng": 121.234981, "lat": 30.345152, "value": 27, "color": "#fee08b", "developer": "绿地集团宁波杭州湾置业有限公司", "property": "嘉成物业/南都物业服务集团"}, {"name": "杭州湾新区(天澜湾花苑)", "lng": 121.231488, "lat": 30.326597, "value": 27, "color": "#fee08b", "developer": "合生创展集团有限公司", "property": "广东康景物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(绿地海湾耀海苑)", "lng": 121.226263, "lat": 30.351718, "value": 27, "color": "#fee08b", "developer": "绿地集团宁波杭州湾置业有限公司", "property": "嘉成物业/南都物业服务集团"}, {"name": "杭州湾新区(世纪城清芷园)", "lng": 121.22623, "lat": 30.328692, "value": 26, "color": "#fee08b", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(碧桂园湾上前璟)", "lng": 121.313189, "lat": 30.280614, "value": 26, "color": "#fee08b", "developer": "宁波杭州湾新区碧桂园房地产开发有限公司", "property": "碧桂园智慧物业服务集团股份有限公司"}, {"name": "杭州湾新区(中兴一路1377弄)", "lng": 121.208586, "lat": 30.32204, "value": 25, "color": "#fee08b", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(春来云潮府)", "lng": 121.313189, "lat": 30.280614, "value": 24, "color": "#fee08b", "developer": "宁波杭州湾新区海鹏置业有限公司", "property": "绿城物业服务集团有限公司"}, {"name": "杭州湾新区(尊海苑)", "lng": 121.21731, "lat": 30.3483, "value": 21, "color": "#fee08b", "developer": "绿地集团宁波杭州湾置业有限公司", "property": "嘉成物业/南都物业服务集团"}, {"name": "杭州湾新区(绿地海湾思海苑)", "lng": 121.216788, "lat": 30.339675, "value": 20, "color": "#fee08b", "developer": "绿地集团宁波杭州湾置业有限公司", "property": "嘉成物业/南都物业服务集团"}, {"name": "杭州湾新区(世纪城竹溪园)", "lng": 121.225395, "lat": 30.323833, "value": 19, "color": "#fee08b", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(世纪城赏江苑)", "lng": 121.235042, "lat": 30.334587, "value": 19, "color": "#fee08b", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(绿地海湾旭海苑)", "lng": 121.221851, "lat": 30.354492, "value": 19, "color": "#fee08b", "developer": "绿地集团宁波杭州湾置业有限公司", "property": "嘉成物业/南都物业服务集团"}, {"name": "杭州湾新区(汀香苑)", "lng": 121.222558, "lat": 30.330192, "value": 18, "color": "#fee08b", "developer": "碧桂园/独立项目", "property": "碧桂园智慧物业/独立物业"}, {"name": "杭州湾新区(世纪城香颂园)", "lng": 121.226685, "lat": 30.325687, "value": 17, "color": "#fee08b", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(海和苑)", "lng": 121.202065, "lat": 30.311525, "value": 17, "color": "#fee08b", "developer": "绿地集团宁波杭州湾置业有限公司", "property": "嘉成物业"}, {"name": "杭州湾新区(天映湾花苑)", "lng": 121.231488, "lat": 30.326597, "value": 15, "color": "#fee08b", "developer": "合生创展集团有限公司", "property": "广东康景物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(学知苑)", "lng": 121.219359, "lat": 30.321478, "value": 15, "color": "#fee08b", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(海纳路375弄)", "lng": 121.204895, "lat": 30.320934, "value": 14, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(风鹭湾花苑)", "lng": 121.188377, "lat": 30.344984, "value": 14, "color": "#91cf60", "developer": "合生创展集团有限公司", "property": "广东康景物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(德海苑)", "lng": 121.216812, "lat": 30.342566, "value": 13, "color": "#91cf60", "developer": "绿地集团宁波杭州湾置业有限公司", "property": "嘉成物业/南都物业服务集团"}, {"name": "杭州湾新区(世外城)", "lng": 121.234466, "lat": 30.351273, "value": 12, "color": "#91cf60", "developer": "浙江均旭房地产开发有限公司", "property": "上海永升物业管理有限公司宁波分公司"}, {"name": "杭州湾新区(世纪城揽月苑)", "lng": 121.231591, "lat": 30.325946, "value": 12, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(星烁苑)", "lng": 121.211564, "lat": 30.31698, "value": 12, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(繁海苑)", "lng": 121.21615, "lat": 30.345416, "value": 12, "color": "#91cf60", "developer": "绿地集团宁波杭州湾置业有限公司", "property": "嘉成物业"}, {"name": "杭州湾新区(绿地海湾雅海苑)", "lng": 121.232933, "lat": 30.35604, "value": 12, "color": "#91cf60", "developer": "绿地集团宁波杭州湾置业有限公司", "property": "嘉成物业/南都物业服务集团"}, {"name": "杭州湾新区(和暄苑)", "lng": 121.231639, "lat": 30.353645, "value": 11, "color": "#91cf60", "developer": "合生创展集团有限公司", "property": "广东康景物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(和熙湾花苑)", "lng": 121.231488, "lat": 30.326597, "value": 11, "color": "#91cf60", "developer": "合生创展集团有限公司", "property": "广东康景物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(赏江苑)", "lng": 121.235042, "lat": 30.334587, "value": 11, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(锦云湾花苑)", "lng": 121.203877, "lat": 30.352904, "value": 11, "color": "#91cf60", "developer": "宁波杭州湾新区港中旅实业投资有限公司", "property": "港中旅物业管理（深圳）有限公司宁波分公司"}, {"name": "杭州湾新区(望澜园)", "lng": 121.203234, "lat": 30.34079, "value": 10, "color": "#91cf60", "developer": "宁波融创杭州湾置业有限公司", "property": "融创物业服务集团有限公司宁波分公司"}, {"name": "杭州湾新区(碧桂园海上传奇听涛苑)", "lng": 121.197653, "lat": 30.33917, "value": 10, "color": "#91cf60", "developer": "宁波杭州湾新区碧桂园房地产开发有限公司", "property": "碧桂园智慧物业服务集团股份有限公司"}, {"name": "杭州湾新区(绿地海湾丽海苑)", "lng": 121.224699, "lat": 30.344991, "value": 10, "color": "#91cf60", "developer": "绿地集团宁波杭州湾置业有限公司", "property": "嘉成物业/南都物业服务集团"}, {"name": "杭州湾新区(绿地海湾栀海苑)", "lng": 121.207209, "lat": 30.348164, "value": 10, "color": "#91cf60", "developer": "绿地集团宁波杭州湾置业有限公司", "property": "嘉成物业/南都物业服务集团"}, {"name": "杭州湾新区(绿地海湾泰海苑)", "lng": 121.220015, "lat": 30.348086, "value": 10, "color": "#91cf60", "developer": "绿地集团宁波杭州湾置业有限公司", "property": "嘉成物业/南都物业服务集团"}, {"name": "杭州湾新区(世纪城梦想公寓)", "lng": 121.313189, "lat": 30.280614, "value": 9, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(云泊苑)", "lng": 121.205154, "lat": 30.311778, "value": 9, "color": "#91cf60", "developer": "宁波祥源旅游开发有限公司", "property": "连云港祥源物业管理有限公司"}, {"name": "杭州湾新区(天瑞湾)", "lng": 121.231488, "lat": 30.326597, "value": 9, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(悦畔湾花苑)", "lng": 121.188347, "lat": 30.336688, "value": 9, "color": "#91cf60", "developer": "合生创展集团有限公司", "property": "广东康景物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(晨曦湾花苑)", "lng": 121.187248, "lat": 30.338599, "value": 9, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(澜璟园)", "lng": 121.198389, "lat": 30.343377, "value": 9, "color": "#91cf60", "developer": "宁波融创杭州湾置业有限公司", "property": "融创物业服务集团有限公司宁波分公司"}, {"name": "杭州湾新区(珑澜苑)", "lng": 121.206072, "lat": 30.340257, "value": 9, "color": "#91cf60", "developer": "宁波融创杭州湾置业有限公司", "property": "融创物业服务集团有限公司宁波分公司"}, {"name": "杭州湾新区(皓月苑)", "lng": 121.21338, "lat": 30.317178, "value": 9, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(逸海苑)", "lng": 121.235287, "lat": 30.347988, "value": 9, "color": "#91cf60", "developer": "绿地集团宁波杭州湾置业有限公司", "property": "嘉成物业/南都物业服务集团"}, {"name": "杭州湾新区(雍荣园)", "lng": 121.200974, "lat": 30.344137, "value": 9, "color": "#91cf60", "developer": "宁波融创杭州湾置业有限公司", "property": "融创物业服务集团有限公司宁波分公司"}, {"name": "杭州湾新区(杰海苑)", "lng": 121.219364, "lat": 30.355251, "value": 8, "color": "#91cf60", "developer": "绿地集团宁波杭州湾置业有限公司", "property": "嘉成物业"}, {"name": "杭州湾新区(海悦湾花苑)", "lng": 121.340464, "lat": 30.294497, "value": 8, "color": "#91cf60", "developer": "中南置地/宁波大通置业有限公司", "property": "万科物业/中南物业"}, {"name": "杭州湾新区(海汀湾花苑)", "lng": 121.202416, "lat": 30.324172, "value": 8, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(海雅苑)", "lng": 121.197809, "lat": 30.308783, "value": 8, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(滨海四路1255弄)", "lng": 121.205675, "lat": 30.330479, "value": 8, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(碧桂园海上传奇天荟苑)", "lng": 121.313189, "lat": 30.280614, "value": 8, "color": "#91cf60", "developer": "宁波杭州湾新区碧桂园房地产开发有限公司", "property": "碧桂园智慧物业服务集团股份有限公司"}, {"name": "杭州湾新区(翠湖苑)", "lng": 121.224921, "lat": 30.333306, "value": 8, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(观澜苑)", "lng": 121.234085, "lat": 30.331069, "value": 8, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(越溪湖畔)", "lng": 121.286576, "lat": 30.313593, "value": 8, "color": "#91cf60", "developer": "独立开发商", "property": "独立物业"}, {"name": "杭州湾新区(中南菩悦海悦湾花苑)", "lng": 121.340464, "lat": 30.294497, "value": 7, "color": "#91cf60", "developer": "中南置地/宁波大通置业有限公司", "property": "万科物业/中南物业"}, {"name": "杭州湾新区(望臻园)", "lng": 121.203224, "lat": 30.344484, "value": 7, "color": "#91cf60", "developer": "宁波融创杭州湾置业有限公司", "property": "融创物业服务集团有限公司宁波分公司"}, {"name": "杭州湾新区(杭州湾壹号睿博园)", "lng": 121.206951, "lat": 30.34416, "value": 7, "color": "#91cf60", "developer": "宁波融创杭州湾置业有限公司", "property": "融创物业服务集团有限公司宁波分公司"}, {"name": "杭州湾新区(杭州湾壹号雍荣园)", "lng": 121.200974, "lat": 30.344137, "value": 7, "color": "#91cf60", "developer": "宁波融创杭州湾置业有限公司", "property": "融创物业服务集团有限公司宁波分公司"}, {"name": "杭州湾新区(汀兰苑)", "lng": 121.222426, "lat": 30.333401, "value": 7, "color": "#91cf60", "developer": "碧桂园/独立项目", "property": "碧桂园智慧物业/独立物业"}, {"name": "杭州湾新区(碧桂园海上传奇逸涛苑)", "lng": 121.313189, "lat": 30.280614, "value": 7, "color": "#91cf60", "developer": "宁波杭州湾新区碧桂园房地产开发有限公司", "property": "碧桂园智慧物业服务集团股份有限公司"}, {"name": "杭州湾新区(逸涛苑)", "lng": 121.231488, "lat": 30.326597, "value": 7, "color": "#91cf60", "developer": "碧桂园/独立项目", "property": "碧桂园智慧物业/独立物业"}, {"name": "杭州湾新区(锦霞湾花苑)", "lng": 121.203879, "lat": 30.351047, "value": 7, "color": "#91cf60", "developer": "宁波杭州湾新区港中旅实业投资有限公司", "property": "港中旅物业管理（深圳）有限公司宁波分公司"}, {"name": "杭州湾新区(雍贤园)", "lng": 121.231488, "lat": 30.326597, "value": 7, "color": "#91cf60", "developer": "宁波融创杭州湾置业有限公司", "property": "融创物业服务集团有限公司宁波分公司"}, {"name": "杭州湾新区(云晴苑)", "lng": 121.206668, "lat": 30.310308, "value": 6, "color": "#91cf60", "developer": "宁波祥源旅游开发有限公司", "property": "连云港祥源物业管理有限公司"}, {"name": "杭州湾新区(俊海苑)", "lng": 121.217523, "lat": 30.354344, "value": 6, "color": "#91cf60", "developer": "绿地集团宁波杭州湾置业有限公司", "property": "嘉成物业"}, {"name": "杭州湾新区(初晴苑)", "lng": 121.20932, "lat": 30.316681, "value": 6, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(天嘉湾花苑)", "lng": 121.201545, "lat": 30.329293, "value": 6, "color": "#91cf60", "developer": "合生创展集团有限公司", "property": "广东康景物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(御海苑)", "lng": 121.23058, "lat": 30.334479, "value": 6, "color": "#91cf60", "developer": "碧桂园/独立项目", "property": "碧桂园智慧物业/独立物业"}, {"name": "杭州湾新区(望云苑)", "lng": 121.229671, "lat": 30.355876, "value": 6, "color": "#91cf60", "developer": "宁波融创杭州湾置业有限公司", "property": "融创物业服务集团有限公司宁波分公司"}, {"name": "杭州湾新区(杭州湾壹号澜璟园)", "lng": 121.198389, "lat": 30.343377, "value": 6, "color": "#91cf60", "developer": "宁波融创杭州湾置业有限公司", "property": "融创物业服务集团有限公司宁波分公司"}, {"name": "杭州湾新区(海涵苑)", "lng": 121.202093, "lat": 30.309496, "value": 6, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(海纳路376弄)", "lng": 121.205282, "lat": 30.321964, "value": 6, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(碧桂园海上传奇皓海苑)", "lng": 121.194319, "lat": 30.343416, "value": 6, "color": "#91cf60", "developer": "宁波杭州湾新区碧桂园房地产开发有限公司", "property": "碧桂园智慧物业服务集团股份有限公司"}, {"name": "杭州湾新区(绿地海湾茗海苑)", "lng": 121.222088, "lat": 30.348164, "value": 6, "color": "#91cf60", "developer": "绿地集团宁波杭州湾置业有限公司", "property": "嘉成物业/南都物业服务集团"}, {"name": "杭州湾新区(花间苑)", "lng": 121.212839, "lat": 30.320266, "value": 6, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(世外旭辉城)", "lng": 121.234466, "lat": 30.351273, "value": 5, "color": "#91cf60", "developer": "浙江均旭房地产开发有限公司", "property": "上海永升物业管理有限公司宁波分公司"}, {"name": "杭州湾新区(云涛路)", "lng": 121.210594, "lat": 30.343394, "value": 5, "color": "#91cf60", "developer": "独立项目", "property": "独立物业"}, {"name": "杭州湾新区(仙踪苑)", "lng": 121.20731, "lat": 30.316351, "value": 5, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(天乾湾花苑)", "lng": 121.20529, "lat": 30.326815, "value": 5, "color": "#91cf60", "developer": "合生创展集团有限公司", "property": "广东康景物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(悦铂商务中心)", "lng": 121.208341, "lat": 30.341167, "value": 5, "color": "#91cf60", "developer": "宁波卓越光谷置业有限公司", "property": "卓越物业集团有限公司"}, {"name": "杭州湾新区(揽月苑)", "lng": 121.231591, "lat": 30.325946, "value": 5, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(星澈苑)", "lng": 121.210965, "lat": 30.31998, "value": 5, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(梦想公寓)", "lng": 121.313189, "lat": 30.280614, "value": 5, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(白鹭园)", "lng": 121.223302, "lat": 30.328299, "value": 5, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(碧桂园海上传奇澄碧苑)", "lng": 121.313189, "lat": 30.280614, "value": 5, "color": "#91cf60", "developer": "宁波杭州湾新区碧桂园房地产开发有限公司", "property": "碧桂园智慧物业服务集团股份有限公司"}, {"name": "杭州湾新区(碧桂园海上传奇钓云苑)", "lng": 121.313189, "lat": 30.280614, "value": 5, "color": "#91cf60", "developer": "宁波杭州湾新区碧桂园房地产开发有限公司", "property": "碧桂园智慧物业服务集团股份有限公司"}, {"name": "杭州湾新区(绿地海湾丽海苑别墅)", "lng": 121.224699, "lat": 30.344991, "value": 5, "color": "#91cf60", "developer": "绿地集团宁波杭州湾置业有限公司", "property": "嘉成物业/南都物业服务集团"}, {"name": "杭州湾新区(绿地海湾逸海苑)", "lng": 121.235287, "lat": 30.347988, "value": 5, "color": "#91cf60", "developer": "绿地集团宁波杭州湾置业有限公司", "property": "嘉成物业/南都物业服务集团"}, {"name": "杭州湾新区(锦潮湾花苑)", "lng": 121.195986, "lat": 30.347501, "value": 5, "color": "#91cf60", "developer": "宁波杭州湾新区港中旅实业投资有限公司", "property": "港中旅物业管理（深圳）有限公司宁波分公司"}, {"name": "杭州湾新区(天泽湾花苑)", "lng": 121.217202, "lat": 30.333736, "value": 4, "color": "#91cf60", "developer": "合生创展集团有限公司", "property": "广东康景物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(杭州湾壹号望澜园)", "lng": 121.203234, "lat": 30.34079, "value": 4, "color": "#91cf60", "developer": "宁波融创杭州湾置业有限公司", "property": "融创物业服务集团有限公司宁波分公司"}, {"name": "杭州湾新区(杭州湾壹号雍贤园)", "lng": 121.293276, "lat": 30.289, "value": 4, "color": "#91cf60", "developer": "宁波融创杭州湾置业有限公司", "property": "融创物业服务集团有限公司宁波分公司"}, {"name": "杭州湾新区(海乐苑)", "lng": 121.198721, "lat": 30.314414, "value": 4, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(碧桂园海上传奇海汐苑)", "lng": 121.313189, "lat": 30.280614, "value": 4, "color": "#91cf60", "developer": "宁波杭州湾新区碧桂园房地产开发有限公司", "property": "碧桂园智慧物业服务集团股份有限公司"}, {"name": "杭州湾新区(祥庆尙府)", "lng": 121.231488, "lat": 30.326597, "value": 4, "color": "#91cf60", "developer": "宁波祥源旅游开发有限公司", "property": "连云港祥源物业管理有限公司"}, {"name": "杭州湾新区(绿地海湾德海苑)", "lng": 121.216812, "lat": 30.342566, "value": 4, "color": "#91cf60", "developer": "绿地集团宁波杭州湾置业有限公司", "property": "嘉成物业/南都物业服务集团"}, {"name": "杭州湾新区(达智路81号)", "lng": 121.231488, "lat": 30.326597, "value": 4, "color": "#91cf60", "developer": "独立项目", "property": "独立物业"}, {"name": "杭州湾新区(锦涵湾花苑)", "lng": 121.199535, "lat": 30.34819, "value": 4, "color": "#91cf60", "developer": "宁波杭州湾新区港中旅实业投资有限公司", "property": "港中旅物业管理（深圳）有限公司宁波分公司"}, {"name": "杭州湾新区(伊水湾花苑)", "lng": 121.185721, "lat": 30.346227, "value": 3, "color": "#91cf60", "developer": "合生创展集团有限公司", "property": "广东康景物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(天荟苑)", "lng": 121.231488, "lat": 30.326597, "value": 3, "color": "#91cf60", "developer": "碧桂园/独立项目", "property": "碧桂园智慧物业/独立物业"}, {"name": "杭州湾新区(晴空苑)", "lng": 121.207664, "lat": 30.314379, "value": 3, "color": "#91cf60", "developer": "宁波融创杭州湾置业有限公司", "property": "融创物业服务集团有限公司宁波分公司"}, {"name": "杭州湾新区(望湾府)", "lng": 121.244085, "lat": 30.295861, "value": 3, "color": "#91cf60", "developer": "宁波融创杭州湾置业有限公司", "property": "融创物业服务集团有限公司宁波分公司"}, {"name": "杭州湾新区(杭州湾壹号澜臻园)", "lng": 121.197999, "lat": 30.341316, "value": 3, "color": "#91cf60", "developer": "宁波融创杭州湾置业有限公司", "property": "融创物业服务集团有限公司宁波分公司"}, {"name": "杭州湾新区(海纳路408弄)", "lng": 121.205397, "lat": 30.324199, "value": 3, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(海裕湾)", "lng": 121.294433, "lat": 30.292679, "value": 3, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(澜臻园)", "lng": 121.197999, "lat": 30.341316, "value": 3, "color": "#91cf60", "developer": "宁波融创杭州湾置业有限公司", "property": "融创物业服务集团有限公司宁波分公司"}, {"name": "杭州湾新区(睿博园)", "lng": 121.206951, "lat": 30.34416, "value": 3, "color": "#91cf60", "developer": "宁波融创杭州湾置业有限公司", "property": "融创物业服务集团有限公司宁波分公司"}, {"name": "杭州湾新区(碧桂园海上传奇名轩苑)", "lng": 121.313189, "lat": 30.280614, "value": 3, "color": "#91cf60", "developer": "宁波杭州湾新区碧桂园房地产开发有限公司", "property": "碧桂园智慧物业服务集团股份有限公司"}, {"name": "杭州湾新区(碧桂园海上传奇闻荷苑)", "lng": 121.313189, "lat": 30.280614, "value": 3, "color": "#91cf60", "developer": "宁波杭州湾新区碧桂园房地产开发有限公司", "property": "碧桂园智慧物业服务集团股份有限公司"}, {"name": "杭州湾新区(逸湾小筑)", "lng": 121.264734, "lat": 30.278803, "value": 3, "color": "#91cf60", "developer": "独立项目", "property": "独立物业"}, {"name": "杭州湾新区(锦珀湾花苑)", "lng": 121.196439, "lat": 30.356833, "value": 3, "color": "#91cf60", "developer": "宁波杭州湾新区港中旅实业投资有限公司", "property": "港中旅物业管理（深圳）有限公司宁波分公司"}, {"name": "杭州湾新区(锦虹湾花苑)", "lng": 121.201531, "lat": 30.350166, "value": 3, "color": "#91cf60", "developer": "宁波杭州湾新区港中旅实业投资有限公司", "property": "港中旅物业管理（深圳）有限公司宁波分公司"}, {"name": "杭州湾新区(中南滨海壹号)", "lng": 121.23267, "lat": 30.316518, "value": 2, "color": "#91cf60", "developer": "中南置地/宁波大通置业有限公司", "property": "万科物业/中南物业"}, {"name": "杭州湾新区(云漫里)", "lng": 121.231488, "lat": 30.326597, "value": 2, "color": "#91cf60", "developer": "宁波祥源旅游开发有限公司", "property": "连云港祥源物业管理有限公司"}, {"name": "杭州湾新区(博文苑)", "lng": 121.233237, "lat": 30.332485, "value": 2, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(合生杭州湾国际新城三期)", "lng": 121.208819, "lat": 30.327637, "value": 2, "color": "#91cf60", "developer": "合生创展集团有限公司", "property": "广东康景物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(塘风路)", "lng": 121.194981, "lat": 30.337796, "value": 2, "color": "#91cf60", "developer": "独立项目", "property": "独立物业"}, {"name": "杭州湾新区(抚风苑)", "lng": 121.231488, "lat": 30.326597, "value": 2, "color": "#91cf60", "developer": "碧桂园/独立项目", "property": "碧桂园智慧物业/独立物业"}, {"name": "杭州湾新区(海上风华园)", "lng": 121.231488, "lat": 30.326597, "value": 2, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(潇雅苑)", "lng": 121.209564, "lat": 30.34588, "value": 2, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(碧桂园海上传奇掬月苑)", "lng": 121.313189, "lat": 30.280614, "value": 2, "color": "#91cf60", "developer": "宁波杭州湾新区碧桂园房地产开发有限公司", "property": "碧桂园智慧物业服务集团股份有限公司"}, {"name": "杭州湾新区(融望园)", "lng": 121.199801, "lat": 30.339871, "value": 2, "color": "#91cf60", "developer": "宁波融创杭州湾置业有限公司", "property": "融创物业服务集团有限公司宁波分公司"}, {"name": "杭州湾新区(香湾苑)", "lng": 121.231488, "lat": 30.326597, "value": 2, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(上湾小区)", "lng": 121.323167, "lat": 30.300865, "value": 1, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(世纪城香颂苑)", "lng": 121.231488, "lat": 30.326597, "value": 1, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(中兴一路1439弄)", "lng": 121.290476, "lat": 30.290646, "value": 1, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(合生杭州湾国际新城一期)", "lng": 121.208819, "lat": 30.327637, "value": 1, "color": "#91cf60", "developer": "合生创展集团有限公司", "property": "广东康景物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(合生杭州湾国际新城二期)", "lng": 121.208819, "lat": 30.327637, "value": 1, "color": "#91cf60", "developer": "合生创展集团有限公司", "property": "广东康景物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(合生杭州湾国际新城别墅)", "lng": 121.208819, "lat": 30.327637, "value": 1, "color": "#91cf60", "developer": "合生创展集团有限公司", "property": "广东康景物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(欣君府)", "lng": 121.22526, "lat": 30.270665, "value": 1, "color": "#91cf60", "developer": "宁波融创杭州湾置业有限公司", "property": "融创物业服务集团有限公司宁波分公司"}, {"name": "杭州湾新区(滨海四路)", "lng": 121.330843, "lat": 30.320963, "value": 1, "color": "#91cf60", "developer": "独立项目", "property": "独立物业"}, {"name": "杭州湾新区(申海街15弄)", "lng": 121.234749, "lat": 30.345632, "value": 1, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(碧桂园海上传奇抚风苑)", "lng": 121.313189, "lat": 30.280614, "value": 1, "color": "#91cf60", "developer": "宁波杭州湾新区碧桂园房地产开发有限公司", "property": "碧桂园智慧物业服务集团股份有限公司"}, {"name": "杭州湾新区(碧桂园海上传奇流云苑)", "lng": 121.313189, "lat": 30.280614, "value": 1, "color": "#91cf60", "developer": "宁波杭州湾新区碧桂园房地产开发有限公司", "property": "碧桂园智慧物业服务集团股份有限公司"}, {"name": "杭州湾新区(若瑜路87弄)", "lng": 121.200502, "lat": 30.312294, "value": 1, "color": "#91cf60", "developer": "独立项目", "property": "独立物业"}, {"name": "杭州湾新区(茗海苑)", "lng": 121.222088, "lat": 30.348164, "value": 1, "color": "#91cf60", "developer": "绿地集团宁波杭州湾置业有限公司", "property": "嘉成物业/南都物业服务集团"}, {"name": "杭州湾新区(金合路)", "lng": 121.227059, "lat": 30.325894, "value": 1, "color": "#91cf60", "developer": "独立项目", "property": "独立物业"}, {"name": "杭州湾新区(金瑞街)", "lng": 121.232599, "lat": 30.331986, "value": 1, "color": "#91cf60", "developer": "宁波杭州湾世纪城置业有限公司", "property": "世纪金源物业服务有限公司宁波分公司"}, {"name": "杭州湾新区(集士路)", "lng": 121.231488, "lat": 30.326597, "value": 1, "color": "#91cf60", "developer": "独立项目", "property": "独立物业"}, {"name": "杭州湾新区(颐蓝湾)", "lng": 121.231488, "lat": 30.326597, "value": 1, "color": "#91cf60", "developer": "合生创展集团有限公司", "property": "广东康景物业服务有限公司宁波分公司"}];
+  const INFO_TEMPLATE = `
+      <div class="info-window" style="min-width:180px;max-width:260px">
+        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px">
+          <b style="font-size:15px;color:#333">${{name}}</b>
+          <span style="background:${{color}};color:white;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:bold">${{value}}</span>
+        </div>
+        <hr style="border:0;border-top:1px dashed #e0e0e0;margin:6px 0">
+        <div style="font-size:13px;color:#555;line-height:1.6">
+          ${{developer_html}}
+          ${{property_html}}
+        </div>
+      </div>
+    `;
   let markers = [];
   let map, infoWindow;
+  let isMobile = window.innerWidth <= 768;
 
   function initMap() {
     map = new AMap.Map('container', {
-      zoom: 13, center: [121.23224627329193, 30.325995732919257], resizeEnable: true
+      zoom: 13, 
+      center: [121.23224627329193, 30.325995732919257], 
+      resizeEnable: true,
+      touchZoom: true,
+      touchZoomCenter: true,
+      isHotspot: false
     });
-    infoWindow = new AMap.InfoWindow({ offset: new AMap.Pixel(0, -15) });
+    
+    infoWindow = new AMap.InfoWindow({ 
+      offset: new AMap.Pixel(0, -15),
+      closeWhenClickMap: true
+    });
+    
     renderList(DATA);
     addMarkers(DATA);
     document.getElementById('count-display').innerText = DATA.length;
+    
+    window.addEventListener('resize', () => {
+      isMobile = window.innerWidth <= 768;
+      if (!isMobile) {
+        document.getElementById('sidebar').classList.remove('open');
+        document.getElementById('overlay').classList.remove('active');
+        document.getElementById('sidebar').style.transform = '';
+      }
+    });
+  }
+
+  // 🔑 生成信息窗内容的函数（支持条件渲染）
+  function buildInfoContent(p) {
+    // 条件生成开发商HTML
+    const devHtml = p.developer ? 
+      `<div><span class="label">开发商:</span><span class="value dev">${p.developer}</span></div>` : '';
+    // 条件生成物业公司HTML  
+    const propHtml = p.property ? 
+      `<div><span class="label">物业公司:</span><span class="value prop">${p.property}</span></div>` : '';
+    
+    // 如果都没有，添加提示
+    const extraInfo = devHtml || propHtml ? devHtml + propHtml : 
+      '<div style="color:#999;font-size:12px">暂无详细信息</div>';
+    
+    return INFO_TEMPLATE
+      .replace('${name}', p.name)
+      .replace('${value}', p.value)
+      .replace('${color}', p.color)
+      .replace('${developer_html}', devHtml)
+      .replace('${property_html}', propHtml);
+  }
+
+  function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('overlay');
+    if (isMobile) {
+      sidebar.classList.toggle('open');
+      overlay.classList.toggle('active');
+    }
   }
 
   function renderList(items) {
@@ -54,16 +184,27 @@
       const item = document.createElement('div');
       item.className = 'list-item';
       item.dataset.index = DATA.indexOf(p);
+      
+      // 列表项也显示开发商/物业简略信息（可选）
+      const extraInfo = p.developer || p.property ? 
+        `<div style="font-size:11px;color:#999;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:95%">
+          ${p.developer ? '🏢'+p.developer : ''}${p.developer && p.property ? ' · ' : ''}${p.property ? '🔑'+p.property : ''}
+        </div>` : '';
+      
       item.innerHTML = `
         <div style="display:flex;align-items:center;width:75%">
           <span class="color-dot" style="background:${p.color}"></span>
           <span class="item-name" title="${p.name}">${p.name}</span>
         </div>
-        <span class="item-value" style="background:${p.color}">${p.value}</span>`;
-      item.onclick = () => {
+        <span class="item-value" style="background:${p.color}">${p.value}</span>` + extraInfo;
+      
+      item.onclick = (e) => {
+        e.stopPropagation();
         highlightItem(item);
         focusPoint(DATA.indexOf(p));
+        if (isMobile) toggleSidebar();
       };
+      item.addEventListener('touchstart', () => {}, {passive:true});
       container.appendChild(item);
     });
   }
@@ -73,27 +214,26 @@
       const marker = new AMap.Marker({
         position: [p.lng, p.lat], map: map, cursor: 'pointer',
         content: `<div style="width:16px;height:16px;background:${p.color};border:2px solid white;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,0.3)"></div>`,
-        offset: new AMap.Pixel(-8, -8)
+        offset: new AMap.Pixel(-8, -8),
+        extData: p
       });
-      marker._data = p;
       
-      // 🔑 关键修复：添加地图圆点点击事件
-      marker.on('click', () => {
-        // 1. 高亮左侧对应列表项
+      marker.on('click', function(e) {
+        const p = this.getExtData();
+        const idx = DATA.indexOf(p);
+        
+        // 高亮列表项
         const listItems = document.querySelectorAll('.list-item');
         listItems.forEach(item => {
-          if (item.dataset.index == DATA.indexOf(p)) {
+          if (item.dataset.index == idx) {
             highlightItem(item);
-            item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (isMobile) item.scrollIntoView({ behavior: 'smooth', block: 'center' });
           }
         });
-        // 2. 地图居中放大
+        
+        // 地图居中 + 显示信息窗
         map.setZoomAndCenter(16, [p.lng, p.lat]);
-        // 3. 弹出信息窗
-        const content = `<div style="min-width:160px"><b style="font-size:14px">${p.name}</b>
-          <hr style="border:0;border-top:1px dashed #eee;margin:8px 0">
-          数量：<span style="color:${p.color};font-weight:bold;font-size:18px">${p.value}</span></div>`;
-        infoWindow.setContent(content);
+        infoWindow.setContent(buildInfoContent(p));
         infoWindow.open(map, marker.getPosition());
       });
       markers.push(marker);
@@ -102,13 +242,10 @@
 
   function focusPoint(index) {
     const p = DATA[index];
-    const target = markers.find(m => m._data === p);
+    const target = markers.find(m => m.getExtData() === p);
     if (target) {
       map.setZoomAndCenter(16, [p.lng, p.lat]);
-      const content = `<div style="min-width:160px"><b style="font-size:14px">${p.name}</b>
-        <hr style="border:0;border-top:1px dashed #eee;margin:8px 0">
-        数量：<span style="color:${p.color};font-weight:bold;font-size:18px">${p.value}</span></div>`;
-      infoWindow.setContent(content);
+      infoWindow.setContent(buildInfoContent(p));
       infoWindow.open(map, target.getPosition());
     }
   }
@@ -119,18 +256,33 @@
   }
 
   function filterList() {
-    const key = document.getElementById('search').value.toLowerCase();
-    const filtered = DATA.filter(p => p.name.toLowerCase().includes(key));
+    const key = document.getElementById('search').value.toLowerCase().trim();
+    const filtered = key ? DATA.filter(p => 
+      p.name.toLowerCase().includes(key) || 
+      (p.developer && p.developer.toLowerCase().includes(key)) ||
+      (p.property && p.property.toLowerCase().includes(key))
+    ) : DATA;
     renderList(filtered);
+    if (isMobile && key && !document.getElementById('sidebar').classList.contains('open')) {
+      toggleSidebar();
+    }
   }
 
-  if (typeof AMap !== 'undefined') initMap();
-  else {
+  // 初始化
+  if (typeof AMap !== 'undefined') {
+    AMap.plugin('AMap.InfoWindow', () => initMap());
+  } else {
     const script = document.createElement('script');
     script.src = 'https://webapi.amap.com/maps?v=2.0&key=d51ba3aeb39576c52e16cc66e23b8df7';
-    script.onload = initMap;
+    script.onload = () => {
+      AMap.plugin('AMap.InfoWindow', () => initMap());
+    };
     document.head.appendChild(script);
   }
+  
+  document.addEventListener('touchmove', function(e) {
+    if (e.target.closest('#container')) {}
+  }, { passive: true });
 </script>
 </body>
 </html>
